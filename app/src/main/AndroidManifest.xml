@@ -7,14 +7,14 @@
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@drawable/icon"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.CGMMedical"
+        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
         android:usesCleartextTraffic="true"
-        android:enableOnBackInvokedCallback="true"
-        tools:targetApi="31">
+        tools:targetApi="tiramisu">
         <activity
             android:name=".MainActivity"
             android:exported="true">
