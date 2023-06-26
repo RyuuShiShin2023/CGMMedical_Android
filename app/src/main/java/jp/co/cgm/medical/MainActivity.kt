@@ -3,24 +3,30 @@ package jp.co.cgm.medical
 import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.util.Log
 import android.view.View
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.webkit.*
 import android.widget.ProgressBar
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
+    private var wbFilePathCallback: ValueCallback<Array<Uri>>? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +75,7 @@ class MainActivity : AppCompatActivity() {
                     intent.component = cmp
                     startActivity(intent)
                     true
-                } catch (e : Exception) {
+                } catch (e: Exception) {
                     AlertDialog.Builder(this@MainActivity)
                         .setTitle("提示")
                         .setMessage("未检测到微信客户端，请安装后重试")
@@ -86,7 +92,7 @@ class MainActivity : AppCompatActivity() {
                     intent.data = Uri.parse(url)
                     startActivity(intent)
                     true
-                } catch (e : Exception) {
+                } catch (e: Exception) {
                     AlertDialog.Builder(this@MainActivity)
                         .setTitle("提示")
                         .setMessage("未检测到支付宝客户端，请安装后重试")
@@ -116,7 +122,8 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
             }
-            val js = "javascript:(function() {document.getElementsByClassName('head_download_hbotitem')[0].style.display='none'})();"
+            val js =
+                "javascript:(function() {document.getElementsByClassName('head_download_hbotitem')[0].style.display='none'})();"
             view?.loadUrl(js)
         }
     }
@@ -130,6 +137,104 @@ class MainActivity : AppCompatActivity() {
                 progressBar.visibility = View.VISIBLE
                 progressBar.setProgress(newProgress, true)
             }
+        }
+
+        override fun onShowFileChooser(
+            webView: WebView?,
+            filePathCallback: ValueCallback<Array<Uri>>?,
+            fileChooserParams: FileChooserParams?
+        ): Boolean {
+            wbFilePathCallback = filePathCallback
+            if (checkAndRequestPermissions()) {
+                showFileChooser()
+            }
+            return true
+        }
+    }
+
+    private val launcher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (it.resultCode == RESULT_OK) {
+                val data = it.data?.data
+                if (data == null) {
+                    val photo: Bitmap? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        it.data?.extras?.getParcelable("data", Bitmap::class.java)
+                    } else {
+                        it.data?.extras?.get("data") as Bitmap
+                    }
+                    Thread {
+                        val file = File(cacheDir, "dummy.jpg")
+                        file.createNewFile()
+                        val bos = ByteArrayOutputStream()
+                        photo?.compress(Bitmap.CompressFormat.JPEG, 0, bos)
+                        val bitmapData = bos.toByteArray()
+                        val fos = FileOutputStream(file)
+                        fos.write(bitmapData)
+                        fos.flush()
+                        fos.close()
+
+                        val photoFilePath = Uri.fromFile(file)
+                        wbFilePathCallback?.onReceiveValue(arrayOf(photoFilePath))
+                    }.start()
+                } else {
+                    wbFilePathCallback?.onReceiveValue(arrayOf(data))
+                }
+            } else {
+                wbFilePathCallback?.onReceiveValue(null)
+            }
+        }
+
+    private fun showFileChooser() {
+        val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+
+        val galleryIntent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+
+        val contentSelectionIntent = Intent(Intent.ACTION_GET_CONTENT)
+        contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE)
+        contentSelectionIntent.type = "image/*"
+
+        val chooserIntent = Intent(Intent.ACTION_CHOOSER)
+        chooserIntent.putExtra(Intent.EXTRA_INTENT, contentSelectionIntent)
+        chooserIntent.putExtra(Intent.EXTRA_TITLE, "")
+        chooserIntent.putExtra(
+            Intent.EXTRA_INITIAL_INTENTS,
+            arrayOf(galleryIntent, takePictureIntent)
+        )
+        launcher.launch(chooserIntent)
+    }
+
+    private fun checkAndRequestPermissions(): Boolean {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 999)
+            return false
+        }
+
+        return true
+    }
+
+    private fun showManualOpenPermissionsDialog() {
+        AlertDialog.Builder(this)
+            .setMessage("请前往设定开启相关权限")
+            .setPositiveButton("关闭", null)
+            .create().show()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != 999)
+            return
+
+        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (checkAndRequestPermissions()) {
+                showFileChooser()
+            }
+        } else {
+            showManualOpenPermissionsDialog()
+            wbFilePathCallback?.onReceiveValue(null)
         }
     }
 }
