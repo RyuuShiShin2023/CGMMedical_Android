@@ -5,14 +5,15 @@ plugins {
 
 android {
     namespace 'jp.co.cgm.medical'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "jp.co.cgm.medical"
         minSdk 26
-        targetSdk 33
-        versionCode 1
-        versionName "1.0"
+        //noinspection OldTargetApi
+        targetSdk 34
+        versionCode 2
+        versionName "1.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -30,6 +31,7 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
+    buildToolsVersion '34.0.0'
 }
 
 dependencies {
